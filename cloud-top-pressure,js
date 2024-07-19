@@ -1,0 +1,55 @@
+// Set the region of interest (A larger area to show more weather patterns)
+var roi = ee.Geometry.Rectangle([-100, 30, -80, 45]);
+
+// Set the date to 3 weeks ago
+var targetDate = ee.Date(Date.now()).advance(-3, 'week');
+
+// Load GOES-16 data
+var goes16 = ee.ImageCollection('NOAA/GOES/16/MCMIPF')
+    .filterDate(targetDate, targetDate.advance(1, 'day'))
+    .filterBounds(roi);
+
+// Check if we have any images
+var imageCount = goes16.size();
+print('Number of images found:', imageCount);
+
+// Function to handle visualization
+var visualize = function(image) {
+    // Print the date of the GOES-16 image
+    print('GOES-16 Image Date:', ee.Date(image.get('system:time_start')).format('YYYY-MM-dd HH:mm:ss').getInfo());
+
+    // Select bands for true color image (Corrected band names)
+    var trueColor = image.select(['CMI_C02', 'CMI_C03', 'CMI_C01']); 
+
+    // Cloud Optical Depth (COD) is not directly available in MCMIPF
+    // We'll use a proxy by visualizing the "Cloud Top Pressure" band
+    var cloudTopPressure = image.select('CMI_C13');
+
+    // Create visualizations
+    var trueColorVis = {
+        bands: ['CMI_C02', 'CMI_C03', 'CMI_C01'],
+        min: 0,
+        max: 65535, // Adjust the max value to match the data range
+    };
+
+    var cloudTopPressureVis = {
+        min: 50000, // Adjust the min/max values based on cloud top pressure range
+        max: 100000,
+        palette: ['00FFFF', '0080FF', '00FF80', 'FFFF00', 'FF8000', 'FF0000'] // Blue to Red
+    };
+
+    // Add layers to the map (Updated layer name)
+    Map.addLayer(trueColor, trueColorVis, 'True Color (Proxy)');
+    Map.addLayer(cloudTopPressure, cloudTopPressureVis, 'Cloud Top Pressure (Proxy for COD)');
+
+    print('Visualization layers added to map');
+};
+
+// Use the function if we have images
+if (imageCount.getInfo() > 0) {
+    visualize(goes16.first());
+    Map.centerObject(roi, 5);
+} else {
+    print('No images found for the specified date range. Try adjusting the date.');
+}
+
